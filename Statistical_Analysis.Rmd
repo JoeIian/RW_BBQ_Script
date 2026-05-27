@@ -1,0 +1,181 @@
+
+For this code to work, your current working directory you should have the following:
+
+- this rmd file
+- a folder called "results" with in it, a csv file called "master_dataset.csv" (this is obtained by running the ipynb notebook)
+
+After running this rmd file once, within the already existing "results" folder, a new folder will appear named "statistical_analysis". Here, you will find the following:
+- **accuracy_regression txt file and png file**: the results and a plot of the multiple linear regression model that predicts model accuracy from model size and political persona 
+- **bias_regression txt file and png file**: the results and a plot of the multiple linear regression model that predicts model bias from model size and political persona 
+
+
+```{r}
+
+# install packages
+
+install.packages("readr")
+
+library(readr)
+library(stringr)
+library(dplyr)
+library(ggplot2)
+
+```
+
+
+```{r}
+# preprocessing of dataframe
+
+df <- read_csv("results/master_dataset.csv")
+
+df$model_size_num <- str_extract(
+  df$model_size,
+  "\\d+\\.?\\d*"
+)
+
+df$model_size_num <- as.numeric(
+  df$model_size_num
+)
+
+df$persona <- as.factor(df$persona)
+
+
+# set results relative to their baseline model
+
+agg_df <- df %>%
+  group_by(model_size_num, persona) %>%
+  summarise(
+    accuracy = mean(correct, na.rm = TRUE),
+    bias_score = mean(bias_score, na.rm = TRUE)
+  )
+agg_df$persona <- relevel(agg_df$persona, ref = "Baseline")
+
+```
+
+
+```{r}
+# accuracy linear correlation
+
+accuracy_model <- lm(
+  accuracy ~ log(model_size_num) * persona,
+  data = agg_df
+)
+
+summary(accuracy_model)
+anova(accuracy_model)
+
+# plot
+ggplot(
+  agg_df,
+  aes(
+    x = model_size_num,
+    y = accuracy,
+    color = persona
+  )
+) +
+  geom_point(size = 3) +
+  geom_smooth(method = "lm", se = FALSE) +
+  scale_x_log10()
+
+```
+
+
+```{r}
+# bias score linear correlation
+
+bias_model <- lm(
+  bias_score ~ log(model_size_num) * persona,
+  data = agg_df
+)
+
+summary(bias_model)
+anova(bias_model)
+
+
+# plot 
+ggplot(
+  agg_df,
+  aes(
+    x = model_size_num,
+    y = bias_score,
+    color = persona
+  )
+) +
+  geom_point(size = 3) +
+  geom_smooth(method = "lm", se = FALSE) +
+  scale_x_log10()
+
+```
+
+
+```{r}
+
+# save as image files
+
+# create results folder if it does not exist
+if (!dir.exists("results")) {
+  dir.create("results")
+}
+
+# create statistical analysis folder
+if (!dir.exists("results/statistical_analysis")) {
+  dir.create("results/statistical_analysis")
+}
+
+accuracy_plot <- ggplot(
+  agg_df,
+  aes(
+    x = model_size_num,
+    y = accuracy,
+    color = persona
+  )
+) +
+  geom_point(size = 3) +
+  geom_smooth(method = "lm", se = FALSE) +
+  scale_x_log10() +
+  ggtitle("Accuracy vs Model Size")
+
+ggsave(
+  filename = "results/statistical_analysis/accuracy_regression.png",
+  plot = accuracy_plot,
+  width = 10,
+  height = 6,
+  dpi = 300
+)
+
+
+bias_plot <- ggplot(
+  agg_df,
+  aes(
+    x = model_size_num,
+    y = bias_score,
+    color = persona
+  )
+) +
+  geom_point(size = 3) +
+  geom_smooth(method = "lm", se = FALSE) +
+  scale_x_log10() +
+  ggtitle("Bias Score vs Model Size")
+
+ggsave(
+  filename = "results/statistical_analysis/bias_regression.png",
+  plot = bias_plot,
+  width = 10,
+  height = 6,
+  dpi = 300
+)
+
+
+capture.output(
+  summary(accuracy_model),
+  file = "results/statistical_analysis/accuracy_model_summary.txt"
+)
+
+capture.output(
+  summary(bias_model),
+  file = "results/statistical_analysis/bias_model_summary.txt"
+)
+
+```
+
+
